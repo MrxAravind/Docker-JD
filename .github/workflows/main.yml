@@ -1,0 +1,49 @@
+name: JDDock
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+      - name: Unziping Config
+        run: unzip cfg.zip
+      - name: List files and create directories
+        run: |
+          pwd && ls && mkdir -p downloads
+          ls config
+          rm cfg.zip
+      - name: Build Docker Image
+        run: docker build . -t jddoc
+      - name: Run Docker Container
+        run: |
+          docker run -d -p 8080:8080 \
+            -e JD_DEVICENAME="${{ secrets.JD_DEVICENAME }}" \
+            -e JD_EMAIL="${{ secrets.JD_EMAIL }}" \
+            -e JD_PASSWORD="${{ secrets.JD_PASSWORD }}" \
+            -v "$(pwd)/downloads:/jdownloader/downloads" \
+            -v "$(pwd)/config:/jdownloader/cfg" \
+            jddoc
+      - name: Download and install dependencies
+        run: |
+          pip install -r requirements.txt
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          wget -qq ${{ secrets.CONFIG }}
+      - name: Running Script
+        run: python jdclient.py
+      - name: Export Config
+        run: |
+          zip -r cfg.zip config/
+          ls && du -sh cfg.zip
+      - name: Commit and Push Config
+        run: |
+          git config --global user.name 'mrhoster69'
+          git config --global user.email 'mrhoster69@users.noreply.github.com'
+          git add cfg.zip
+          git commit -m "Config Update"
+          git push
+      - name: Stop Docker Container
+        run: docker stop $(docker ps -q --filter ancestor=jddoc)
